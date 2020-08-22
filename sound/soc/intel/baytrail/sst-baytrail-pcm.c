@@ -57,6 +57,12 @@ struct sst_byt_priv_data {
 	bool restore_stream;
 };
 
+void sst_byt_hook(struct platform_device *pdev)
+{
+	dev_warn(&pdev->dev, "baytrail hook initialized.\n");
+}
+EXPORT_SYMBOL(sst_byt_hook);
+
 /* this may get called several times by oss emulation */
 static int sst_byt_pcm_hw_params(struct snd_soc_component *component,
 				 struct snd_pcm_substream *substream,

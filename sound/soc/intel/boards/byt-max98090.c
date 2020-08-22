@@ -18,6 +18,8 @@
 #include <sound/jack.h>
 #include "../../codecs/max98090.h"
 
+void sst_byt_hook(struct platform_device*);
+
 struct byt_max98090_private {
 	struct snd_soc_jack jack;
 };
@@ -144,6 +146,8 @@ static int byt_max98090_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct byt_max98090_private *priv;
 	int ret_val;
+
+	sst_byt_hook(pdev);
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
