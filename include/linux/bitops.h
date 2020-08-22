@@ -82,7 +82,12 @@ static __always_inline unsigned long hweight_long(unsigned long w)
  */
 static inline __u64 rol64(__u64 word, unsigned int shift)
 {
+#if defined(CONFIG_X86_64) || defined(CONFIG_X86)
+    __asm__ __volatile__ ("rolq %%cl, %%rax;" : "=a" (word) : "a" (word), "c" (shift) : );
+    return word;
+#else
 	return (word << (shift & 63)) | (word >> ((-shift) & 63));
+#endif /* defined(CONFIG_X86_64) || defined(CONFIG_X86) */
 }
 
 /**
@@ -92,7 +97,12 @@ static inline __u64 rol64(__u64 word, unsigned int shift)
  */
 static inline __u64 ror64(__u64 word, unsigned int shift)
 {
+#if defined(CONFIG_X86_64) || defined(CONFIG_X86)
+    __asm__ __volatile__ ("rorq %%cl, %%rax;" : "=a" (word) : "a" (word), "c" (shift) : );
+    return word;
+#else
 	return (word >> (shift & 63)) | (word << ((-shift) & 63));
+#endif /* defined(CONFIG_X86_64) || defined(CONFIG_X86) */
 }
 
 /**
@@ -102,7 +112,12 @@ static inline __u64 ror64(__u64 word, unsigned int shift)
  */
 static inline __u32 rol32(__u32 word, unsigned int shift)
 {
+#if defined(CONFIG_X86_64) || defined(CONFIG_X86)
+    __asm__ __volatile__ ("rol %%cl, %%eax;" : "=a" (word) : "a" (word), "c" (shift) : );
+    return word;
+#else
 	return (word << (shift & 31)) | (word >> ((-shift) & 31));
+#endif /* defined(CONFIG_X86_64) || defined(CONFIG_X86) */
 }
 
 /**
@@ -112,7 +127,12 @@ static inline __u32 rol32(__u32 word, unsigned int shift)
  */
 static inline __u32 ror32(__u32 word, unsigned int shift)
 {
+#if defined(CONFIG_X86_64) || defined(CONFIG_X86)
+    __asm__ __volatile__ ("ror %%cl, %%eax;" : "=a" (word) : "a" (word), "c" (shift) : );
+    return word;
+#else
 	return (word >> (shift & 31)) | (word << ((-shift) & 31));
+#endif /* defined(CONFIG_X86_64) || defined(CONFIG_X86) */
 }
 
 /**
