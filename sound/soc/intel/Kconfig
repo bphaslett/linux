@@ -70,6 +70,7 @@ config SND_SOC_INTEL_BAYTRAIL
 	select SND_SOC_INTEL_SST_ACPI
 	select SND_SOC_INTEL_SST_FIRMWARE
 	select SND_SOC_ACPI_INTEL_MATCH
+	select SOC_CLK_CRITICAL
 	help
 	  If you have a Intel Baytrail platform connected to an I2S codec,
 	  then enable this option by saying Y or m. This was typically used

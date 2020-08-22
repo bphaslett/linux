@@ -312,6 +312,15 @@ static void plt_clk_unregister_parents(struct clk_plt_data *data)
 	plt_clk_unregister_fixed_rate_loop(data, data->nparents);
 }
 
+void plt_clk_check_critical(struct pmc_clk_data *pmc_data)
+{
+#ifdef CONFIG_SOC_CLK_CRITICAL
+	pmc_data->critical=true;
+#else
+	pmc_data->critical=false;
+#endif
+}
+
 static int plt_clk_probe(struct platform_device *pdev)
 {
 	const struct pmc_clk_data *pmc_data;
@@ -331,6 +340,8 @@ static int plt_clk_probe(struct platform_device *pdev)
 	parent_names = plt_clk_register_parents(pdev, data, pmc_data->clks);
 	if (IS_ERR(parent_names))
 		return PTR_ERR(parent_names);
+
+  plt_clk_check_critical((struct pmc_clk_data*) pmc_data);
 
 	for (i = 0; i < PMC_CLK_NUM; i++) {
 		data->clks[i] = plt_clk_register(pdev, i, pmc_data,

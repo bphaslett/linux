@@ -6,6 +6,11 @@ config HAVE_CLK
 	  The <linux/clk.h> calls support software clock gating and
 	  thus are a key power management tool on many systems.
 
+config SOC_CLK_CRITICAL
+	bool
+  help
+	  Clocks marked as critical to prevent being gated by the clock framework.
+
 config CLKDEV_LOOKUP
 	bool
 	select HAVE_CLK
