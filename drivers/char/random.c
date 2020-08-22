@@ -352,10 +352,10 @@
 /*
  * Configuration information
  */
-#define INPUT_POOL_SHIFT	12
-#define INPUT_POOL_WORDS	(1 << (INPUT_POOL_SHIFT-5))
-#define OUTPUT_POOL_SHIFT	10
-#define OUTPUT_POOL_WORDS	(1 << (OUTPUT_POOL_SHIFT-5))
+#define INPUT_POOL_SHIFT	18
+#define INPUT_POOL_LONGS	(1 << (INPUT_POOL_SHIFT-5))
+#define OUTPUT_POOL_SHIFT	16
+#define OUTPUT_POOL_LONGS	(1 << (OUTPUT_POOL_SHIFT-5))
 #define EXTRACT_SIZE		10
 
 
@@ -376,10 +376,10 @@
  * should wake up processes which are selecting or polling on write
  * access to /dev/random.
  */
-static int random_write_wakeup_bits = 28 * OUTPUT_POOL_WORDS;
+static int random_write_wakeup_bits = 28 * OUTPUT_POOL_LONGS;
 
 /*
- * Originally, we used a primitive polynomial of degree .poolwords
+ * Originally, we used a primitive polynomial of degree .poollongs
  * over GF(2).  The taps for various sizes are defined below.  They
  * were chosen to be evenly spaced except for the last tap, which is 1
  * to get the twisting happening as fast as possible.
@@ -424,13 +424,13 @@ static int random_write_wakeup_bits = 28 * OUTPUT_POOL_WORDS;
  * irreducible, which we have made here.
  */
 static const struct poolinfo {
-	int poolbitshift, poolwords, poolbytes, poolfracbits;
-#define S(x) ilog2(x)+5, (x), (x)*4, (x) << (ENTROPY_SHIFT+5)
+	int poolbitshift, poollongs, poolbytes, poolfracbits;
+#define S(x) ilog2(x)+5, (x), (x)*sizeof(long), (x) << (ENTROPY_SHIFT+5)
 	int tap1, tap2, tap3, tap4, tap5;
 } poolinfo_table[] = {
 	/* was: x^128 + x^103 + x^76 + x^51 +x^25 + x + 1 */
 	/* x^128 + x^104 + x^76 + x^51 +x^25 + x + 1 */
-	{ S(128),	104,	76,	51,	25,	1 },
+	{ S(8192), 6528, 4915, 3277, 1639, 1 },
 };
 
 /*
@@ -492,13 +492,13 @@ struct entropy_store;
 struct entropy_store {
 	/* read-only data: */
 	const struct poolinfo *poolinfo;
-	__u32 *pool;
+	__u64 *pool;
 	const char *name;
 
 	/* read-write data: */
 	spinlock_t lock;
-	unsigned short add_ptr;
-	unsigned short input_rotate;
+	unsigned long add_ptr;
+	unsigned int input_rotate;
 	int entropy_count;
 	unsigned int initialized:1;
 	unsigned int last_data_init:1;
@@ -511,18 +511,34 @@ static ssize_t _extract_entropy(struct entropy_store *r, void *buf,
 				size_t nbytes, int fips);
 
 static void crng_reseed(struct crng_state *crng, struct entropy_store *r);
-static __u32 input_pool_data[INPUT_POOL_WORDS] __latent_entropy;
+static __u64 input_pool_data[INPUT_POOL_LONGS] __latent_entropy;
 
 static struct entropy_store input_pool = {
 	.poolinfo = &poolinfo_table[0],
 	.name = "input",
 	.lock = __SPIN_LOCK_UNLOCKED(input_pool.lock),
+	.add_ptr = 0,
 	.pool = input_pool_data
 };
 
-static __u32 const twist_table[8] = {
-	0x00000000, 0x3b6e20c8, 0x76dc4190, 0x4db26158,
-	0xedb88320, 0xd6d6a3e8, 0x9b64c2b0, 0xa00ae278 };
+static __u64 const twist_table[16][4] = {
+	{ 0x0706050403020100, 0x0E0D0C0B0A090807, 0x090B090F090B0907, 0x4858487848584838 },
+	{ 0xB7A7B787B7A7B7C7, 0x8706860585048403, 0x30A1318232A333C4, 0x85098C1195199E21 },
+	{ 0x7AF673EE6AE661DE, 0xC3834302C2824201, 0xB97530ECA86423DF, 0xCBA9876543211EFD },
+	{ 0x3456789ABCDEE102, 0xE1C1A18161412100, 0xD597D91BDD9FC002, 0xACBEC8DEECFE0016 },
+	{ 0x534137211301FFE9, 0x70E0D0C0B0A09080, 0x23A1E7E1A3A16F69, 0x1D0F3F0D1D0B7B49 },
+	{ 0xE2F0C0F2E2F484B6, 0x3870686058504840, 0xDA80A892BAA4CCF6, 0xD4054495D52667B6 },
+	{ 0x2BFABB6A2AD99849, 0x1C3834302C282420, 0x37C28F5A06F1BC69, 0xBE147AD0378DE349 },
+	{ 0x41EB852FC8721CB6, 0x0E1C1A1816141210, 0x4FF79F37DE660EA6, 0x7FBCF9BEF3307532 },
+	{ 0x804306410CCF8ACD, 0x070E0D0C0B0A0908, 0x874D0B4D07C583C5, 0x3A685A683E2C1E2C },
+	{ 0xC597A597C1D3E1D3, 0x0387068605850484, 0xC610A311C456E557, 0x3085188E22B72ABE },
+	{ 0xCF7AE771DD48D541, 0x01C3834302C28242, 0xCEB96432DF8A5703, 0x75CB2196FC52B81E },
+	{ 0x8A34DE6903AD47E1, 0x00E1C1A181614121, 0x8AD51FC882CC06C0, 0x56A8FE4416603604 },
+	{ 0xA95701BBE99FC9FB, 0x8070E0D0C0B0A090, 0x2927E16B292F696B, 0x493F0B59497B4B59 },
+	{ 0xB6C0F4A6B684B4A6, 0x4038706860585048, 0xF6F884CED6DCE4EE, 0xB7C42676B6E72777 },
+	{ 0x483BD9894918D888, 0x201C3834302C2824, 0x6827E1BD7934F0AC, 0x413F0DEBC9A78563 },
+	{ 0xBEC0F21436587A9C, 0x100E1C1A18161412, 0xAECEEE0E2E4E6E8E, 0x7677707172737475 }
+};
 
 /*
  * This function adds bytes into the entropy "pool".  It does not
@@ -538,10 +554,10 @@ static void _mix_pool_bytes(struct entropy_store *r, const void *in,
 			    int nbytes)
 {
 	unsigned long i, tap1, tap2, tap3, tap4, tap5;
-	int input_rotate;
-	int wordmask = r->poolinfo->poolwords - 1;
+	unsigned int input_rotate=0;
+	int wordmask = r->poolinfo->poollongs - 1;
 	const char *bytes = in;
-	__u32 w;
+	__u64 w;
 
 	tap1 = r->poolinfo->tap1;
 	tap2 = r->poolinfo->tap2;
@@ -549,12 +565,14 @@ static void _mix_pool_bytes(struct entropy_store *r, const void *in,
 	tap4 = r->poolinfo->tap4;
 	tap5 = r->poolinfo->tap5;
 
-	input_rotate = r->input_rotate;
 	i = r->add_ptr;
 
+	if (i == 0)
+		i = (unsigned long)bytes & wordmask;
+
 	/* mix one byte at a time to simplify size handling and churn faster */
-	while (nbytes--) {
-		w = rol32(*bytes++, input_rotate);
+	while (nbytes-- && bytes++) {
+		w = rol64(*bytes, input_rotate);
 		i = (i - 1) & wordmask;
 
 		/* XOR in the various taps */
@@ -566,15 +584,16 @@ static void _mix_pool_bytes(struct entropy_store *r, const void *in,
 		w ^= r->pool[(i + tap5) & wordmask];
 
 		/* Mix the result back in with a twist */
-		r->pool[i] = (w >> 3) ^ twist_table[w & 7];
+		r->pool[i] = (w >> 3) ^ twist_table[w & 0xf][w & 0x3];
 
 		/*
-		 * Normally, we add 7 bits of rotation to the pool.
+		 * Normally, we add 15 bits of rotation to the pool.
+		 * At the beginning of the pool, add an extra 15 bits
 		 * At the beginning of the pool, add an extra 7 bits
 		 * rotation, so that successive passes spread the
 		 * input bits across the pool evenly.
 		 */
-		input_rotate = (input_rotate + (i ? 7 : 14)) & 31;
+		input_rotate = (input_rotate + (i ? 15 : 30)) & 63;
 	}
 
 	r->input_rotate = input_rotate;
@@ -600,7 +619,7 @@ static void mix_pool_bytes(struct entropy_store *r, const void *in,
 }
 
 struct fast_pool {
-	__u32		pool[4];
+	__u64		pool[4];
 	unsigned long	last;
 	unsigned short	reg_idx;
 	unsigned char	count;
@@ -608,28 +627,28 @@ struct fast_pool {
 
 /*
  * This is a fast mixing routine used by the interrupt randomness
- * collector.  It's hardcoded for an 128 bit pool and assumes that any
+ * collector.  It's hardcoded for an 256 bit pool and assumes that any
  * locks that might be needed are taken by the caller.
  */
 static void fast_mix(struct fast_pool *f)
 {
-	__u32 a = f->pool[0],	b = f->pool[1];
-	__u32 c = f->pool[2],	d = f->pool[3];
+	__u64 a = f->pool[0],	b = f->pool[1];
+	__u64 c = f->pool[2],	d = f->pool[3];
 
 	a += b;			c += d;
-	b = rol32(b, 6);	d = rol32(d, 27);
+	b = rol64(b, 17);	d = rol64(d, 53);
 	d ^= a;			b ^= c;
 
 	a += b;			c += d;
-	b = rol32(b, 16);	d = rol32(d, 14);
+	b = rol64(b, 28);	d = rol64(d, 26);
 	d ^= a;			b ^= c;
 
 	a += b;			c += d;
-	b = rol32(b, 6);	d = rol32(d, 27);
+	b = rol64(b, 17);	d = rol64(d, 53);
 	d ^= a;			b ^= c;
 
 	a += b;			c += d;
-	b = rol32(b, 16);	d = rol32(d, 14);
+	b = rol64(b, 28);	d = rol64(d, 26);
 	d ^= a;			b ^= c;
 
 	f->pool[0] = a;  f->pool[1] = b;
@@ -699,7 +718,8 @@ retry:
 		/* The +2 corresponds to the /4 in the denominator */
 
 		do {
-			unsigned int anfrac = min(pnfrac, pool_size/2);
+			/* See comment for ENTROPY_SHIFT */
+			__u64 anfrac = min(pnfrac, pool_size/2);
 			unsigned int add =
 				((pool_size - entropy_count)*anfrac*3) >> s;
 
@@ -739,7 +759,7 @@ retry:
 
 static int credit_entropy_bits_safe(struct entropy_store *r, int nbits)
 {
-	const int nbits_max = r->poolinfo->poolwords * 32;
+	const int nbits_max = r->poolinfo->poollongs * 32;
 
 	if (nbits < 0)
 		return -EINVAL;
@@ -1389,7 +1409,7 @@ retry:
  * This function does the actual extraction for extract_entropy and
  * extract_entropy_user.
  *
- * Note: we assume that .poolwords is a multiple of 16 words.
+ * Note: we assume that .poollongs is a multiple of 8 longs.
  */
 static void extract_buf(struct entropy_store *r, __u8 *out)
 {
@@ -1413,9 +1433,9 @@ static void extract_buf(struct entropy_store *r, __u8 *out)
 		hash.l[i] = v;
 	}
 
-	/* Generate a hash across the pool, 16 words (512 bits) at a time */
+	/* Generate a hash across the pool, 8 longs (512 bits) at a time */
 	spin_lock_irqsave(&r->lock, flags);
-	for (i = 0; i < r->poolinfo->poolwords; i += 16)
+	for (i = 0; i < r->poolinfo->poollongs; i += 8)
 		sha1_transform(hash.w, (__u8 *)(r->pool + i), workspace);
 
 	/*
@@ -2044,7 +2064,7 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 #include <linux/sysctl.h>
 
 static int min_write_thresh;
-static int max_write_thresh = INPUT_POOL_WORDS * 32;
+static int max_write_thresh = INPUT_POOL_LONGS * 32;
 static int random_min_urandom_seed = 60;
 static char sysctl_bootid[16];
 
@@ -2101,7 +2121,7 @@ static int proc_do_entropy(struct ctl_table *table, int write,
 	return proc_dointvec(&fake_table, write, buffer, lenp, ppos);
 }
 
-static int sysctl_poolsize = INPUT_POOL_WORDS * 32;
+static int sysctl_poolsize = INPUT_POOL_LONGS * 32;
 extern struct ctl_table random_table[];
 struct ctl_table random_table[] = {
 	{
