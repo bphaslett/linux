@@ -49,7 +49,14 @@ bool is_tdp_mmu_root(struct kvm *kvm, hpa_t hpa)
 {
 	struct kvm_mmu_page *sp;
 
+	if (!kvm->arch.tdp_mmu_enabled)
+		return false;
+	if (WARN_ON(!VALID_PAGE(hpa)))
+		return false;
+
 	sp = to_shadow_page(hpa);
+	if (WARN_ON(!sp))
+		return false;
 
 	return sp->tdp_mmu_page && sp->root_count;
 }
@@ -209,7 +216,7 @@ static void __handle_changed_spte(struct kvm *kvm, int as_id, gfn_t gfn,
 
 	WARN_ON(level > PT64_ROOT_MAX_LEVEL);
 	WARN_ON(level < PG_LEVEL_4K);
-	WARN_ON(gfn % KVM_PAGES_PER_HPAGE(level));
+	WARN_ON(gfn & (KVM_PAGES_PER_HPAGE(level) - 1));
 
 	/*
 	 * If this warning were to trigger it would indicate that there was a
