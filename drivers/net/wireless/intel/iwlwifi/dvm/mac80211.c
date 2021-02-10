@@ -201,6 +201,7 @@ int iwlagn_mac_setup_register(struct iwl_priv *priv,
 
 	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_CQM_RSSI_LIST);
 	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_EXT_KEY_ID);
+	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
 
 	ret = ieee80211_register_hw(priv->hw);
 	if (ret) {

@@ -412,12 +412,6 @@ static void iwl_mvm_set_tx_cmd_crypto(struct iwl_mvm *mvm,
 		type = TX_CMD_SEC_GCMP;
 		fallthrough;
 	case WLAN_CIPHER_SUITE_CCMP_256:
-		/* TODO: Taking the key from the table might introduce a race
-		 * when PTK rekeying is done, having an old packets with a PN
-		 * based on the old key but the message encrypted with a new
-		 * one.
-		 * Need to handle this.
-		 */
 		tx_cmd->sec_ctl |= type | TX_CMD_SEC_KEY_FROM_TABLE;
 		tx_cmd->key[0] = keyconf->hw_key_idx;
 		iwl_mvm_set_tx_cmd_pn(info, crypto_hdr);

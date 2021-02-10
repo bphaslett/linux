@@ -28,6 +28,9 @@
 #include "iwl-prph.h"
 #include "iwl-nvm-parse.h"
 
+static void iwl_mvm_mac_flush(struct ieee80211_hw *hw,
+			      struct ieee80211_vif *vif, u32 queues, bool drop);
+
 static const struct ieee80211_iface_limit iwl_mvm_limits[] = {
 	{
 		.max = 1,
@@ -492,6 +495,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 	hw->wiphy->flags |= WIPHY_FLAG_IBSS_RSN;
 	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_VHT_IBSS);
+	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
 
 	/* The new Tx API does not allow to pass the key or keyid of a MPDU to
 	 * the hw, preventing us to control which key(id) to use per MPDU.
@@ -3512,6 +3516,20 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 		if (key->hw_key_idx == STA_KEY_IDX_INVALID) {
 			ret = 0;
 			break;
+		}
+
+		/* GCMP and 256 bit CCMP keys the key can't be copied into the
+		 * MPDU struct ieee80211_tx_info. We therefore must flush the
+		 * queues to ensure there are no MPDUs left which are referring
+		 * to the outgoing key.
+		 */
+		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE &&
+		    (key->cipher == WLAN_CIPHER_SUITE_GCMP ||
+		     key->cipher == WLAN_CIPHER_SUITE_GCMP_256 ||
+		     key->cipher == WLAN_CIPHER_SUITE_CCMP_256)) {
+			ieee80211_stop_queues(hw);
+			iwl_mvm_mac_flush(hw, vif, 0, true);
+			ieee80211_wake_queues(hw);
 		}
 
 		if (sta && iwl_mvm_has_new_rx_api(mvm) &&
