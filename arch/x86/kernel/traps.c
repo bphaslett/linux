@@ -395,7 +395,7 @@ DEFINE_IDTENTRY_DF(exc_double_fault)
 		/*
 		 * Adjust our frame so that we return straight to the #GP
 		 * vector with the expected RSP value.  This is safe because
-		 * we won't enable interupts or schedule before we invoke
+		 * we won't enable interrupts or schedule before we invoke
 		 * general_protection, so nothing will clobber the stack
 		 * frame we just set up.
 		 *
@@ -556,7 +556,7 @@ DEFINE_IDTENTRY_ERRORCODE(exc_general_protection)
 		tsk->thread.trap_nr = X86_TRAP_GP;
 
 		if (fixup_vdso_exception(regs, X86_TRAP_GP, error_code, 0))
-			return;
+			goto exit;
 
 		show_signal(tsk, SIGSEGV, "", desc, regs, error_code);
 		force_sig(SIGSEGV);
@@ -978,6 +978,10 @@ static __always_inline void exc_debug_user(struct pt_regs *regs,
 		goto out_irq;
 	}
 
+	/* #DB for bus lock can only be triggered from userspace. */
+	if (dr6 & DR_BUS_LOCK)
+		handle_bus_lock(regs);
+
 	/* Add the virtual_dr6 bits for signals. */
 	dr6 |= current->thread.virtual_dr6;
 	if (dr6 & (DR_STEP | DR_TRAP_BITS) || icebp)
@@ -1057,7 +1061,7 @@ static void math_error(struct pt_regs *regs, int trapnr)
 		goto exit;
 
 	if (fixup_vdso_exception(regs, trapnr, 0, 0))
-		return;
+		goto exit;
 
 	force_sig_fault(SIGFPE, si_code,
 			(void __user *)uprobe_get_trap_addr(regs));
