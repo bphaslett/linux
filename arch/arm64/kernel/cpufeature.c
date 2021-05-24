@@ -68,6 +68,7 @@
 #include <linux/sort.h>
 #include <linux/stop_machine.h>
 #include <linux/types.h>
+#include <linux/minmax.h>
 #include <linux/mm.h>
 #include <linux/cpu.h>
 #include <linux/kasan.h>
@@ -694,14 +695,14 @@ static s64 arm64_ftr_safe_value(const struct arm64_ftr_bits *ftrp, s64 new,
 		ret = ftrp->safe_val;
 		break;
 	case FTR_LOWER_SAFE:
-		ret = new < cur ? new : cur;
+		ret = min(new, cur);
 		break;
 	case FTR_HIGHER_OR_ZERO_SAFE:
 		if (!cur || !new)
 			break;
 		fallthrough;
 	case FTR_HIGHER_SAFE:
-		ret = new > cur ? new : cur;
+		ret = max(new, cur);
 		break;
 	default:
 		BUG();
@@ -1451,7 +1452,7 @@ static bool unmap_kernel_at_el0(const struct arm64_cpu_capabilities *entry,
 }
 
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-static void
+static void __nocfi
 kpti_install_ng_mappings(const struct arm64_cpu_capabilities *__unused)
 {
 	typedef void (kpti_remap_fn)(int, int, phys_addr_t);
@@ -1468,7 +1469,7 @@ kpti_install_ng_mappings(const struct arm64_cpu_capabilities *__unused)
 	if (arm64_use_ng_mappings)
 		return;
 
-	remap_fn = (void *)__pa_symbol(idmap_kpti_install_ng_mappings);
+	remap_fn = (void *)__pa_symbol(function_nocfi(idmap_kpti_install_ng_mappings));
 
 	cpu_install_idmap();
 	remap_fn(cpu, num_online_cpus(), __pa_symbol(swapper_pg_dir));
